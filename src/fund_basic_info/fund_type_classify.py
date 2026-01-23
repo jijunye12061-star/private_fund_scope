@@ -4,7 +4,7 @@ Create Time: 2024-09-09
 该代码主要是筛选出基金的分类信息
 """
 import pandas as pd
-from utils.dating_funcs import generate_report_dates
+from utils.calendar import generate_report_dates
 import os
 from utils.query_data_funcs import fetcher
 

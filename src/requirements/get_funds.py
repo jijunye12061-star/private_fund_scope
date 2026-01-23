@@ -6,8 +6,9 @@
 @time: 2025/11/17 17:43
 @description:
 """
-from utils.query_data_funcs import doris_fetcher, fetcher
-from utils.dating_funcs import generate_report_dates
+from utils.data import doris_fetcher, oracle_fetcher
+from utils.data.repositories.calendar_repo import get_trading_dt
+from utils.calendar import generate_report_dates
 from datetime import datetime, timedelta
 import pandas as pd
 import numpy as np
@@ -28,7 +29,7 @@ def generate_quarter_start_25th(end_date):
         generate_quarter_start_25th('2024-09-30') -> '2024-10-25'
         generate_quarter_start_25th('2024-12-31') -> '2025-01-25'
     """
-    trading_dts = fetcher.get_trading_dt("2021-01-01", "2025-11-20")
+    trading_dts = get_trading_dt("2021-01-01", "2025-11-20")
     if isinstance(end_date, str):
         end_date = datetime.strptime(end_date, '%Y-%m-%d')
 
@@ -345,7 +346,7 @@ if __name__ == "__main__":
     main_portfolio_manager = weight_backtest(main_trade_info)
 
     main_results = evaluation(main_portfolio_manager)
-    from utils.simple_funcs import export_to_excel
+    from utils.io import export_to_excel
     export_to_excel(main_results, r"混合债基回测结果.xlsx")
 
     nav_data = main_results["组合净值"]

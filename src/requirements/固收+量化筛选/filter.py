@@ -3,7 +3,7 @@
 
 import pandas as pd
 from typing import List, Set, Tuple, Dict
-from utils.query_data_funcs import fetcher
+from utils.data import oracle_fetcher
 from match_config import REPORT_DATES, SCORE_WEIGHTS, TOP_N_MATCHES, INDEX_CONFIGS
 
 
@@ -24,7 +24,7 @@ class FundIndexMatcher:
                   AND ENDDATE = TO_DATE(:end_date, 'YYYY-MM-DD')
                   AND STYLE IN ('01', '02', '03', '04') \
                 """
-        return fetcher.query_data_tytfund(query, fund_code=fund_code, end_date=end_date)
+        return oracle_fetcher.query(query, fund_code=fund_code, end_date=end_date)
 
     def get_index_constituents(self, index_code: str, trade_date: str) -> Set[str]:
         """获取指数成分股"""
@@ -34,7 +34,7 @@ class FundIndexMatcher:
                 WHERE INDEXCODE = :index_code
                   AND TRADEDATE = TO_DATE(:trade_date, 'YYYY-MM-DD') \
                 """
-        df = fetcher.query_data_tytfund(query, index_code=index_code, trade_date=trade_date)
+        df = oracle_fetcher.query(query, index_code=index_code, trade_date=trade_date)
         return set(df['SECURITYCODE'].tolist()) if not df.empty else set()
 
     def calculate_metrics(self, holdings_df: pd.DataFrame, constituents_set: Set[str]) -> Tuple[float, float]:
