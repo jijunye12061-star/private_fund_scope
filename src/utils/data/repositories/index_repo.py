@@ -18,7 +18,7 @@ def get_index_nav(index_codes: str | list[str], begin_date: str, end_date: str) 
                    INNER JOIN TYTFUND.INDEX_BA_INFO b ON a.SECURITYVARIETYCODE = b.SECURITYVARIETYCODE
           WHERE b.INDEXCODE = :index_code
             AND a.TDATE >= TO_DATE(:begin_date, 'YYYY-MM-DD')
-            AND a.TDATE <= TO_DATE(:end_date, 'YYYY-MM-DD') \
+            AND a.TDATE <= TO_DATE(:end_date, 'YYYY-MM-DD') 
           """
 
     results = [
@@ -26,3 +26,10 @@ def get_index_nav(index_codes: str | list[str], begin_date: str, end_date: str) 
         for code in index_codes
     ]
     return pd.concat(results, ignore_index=True)
+
+
+if __name__ == '__main__':
+    main_fund_codes = ['CBA05801', 'CBA02721']
+    main_begin_date = '2025-01-01'
+    main_end_date = '2025-01-23'
+    index_nav = get_index_nav(main_fund_codes, main_begin_date, main_end_date)

@@ -1,7 +1,7 @@
 # src/utils/data/repositories/fund_repo.py
 """基金数据查询"""
 import pandas as pd
-from utils.data import oracle_fetcher, doris_fetcher
+from utils.data import oracle_fetcher
 
 
 def get_fund_nav(fund_codes: list[str], begin_date: str, end_date: str) -> pd.DataFrame:
@@ -13,24 +13,21 @@ def get_fund_nav(fund_codes: list[str], begin_date: str, end_date: str) -> pd.Da
         end_date: 结束日期 'YYYY-MM-DD'
 
     Returns:
-        DataFrame(基金代码, 交易日期, 复权净值, 前日复权净值)
+        DataFrame(基金代码, 交易日期, 复权净值, 昨复权净值)
     """
     sql = """
-          SELECT c_fd_code     AS 基金代码, 
-                 c_trade_date  AS 交易日期, 
-                 c_nav_adj     AS 复权净值, 
-                 c_nav_adj_pre AS 前日复权净值
-          FROM tytdata.tb_fd_nav_daily
-          WHERE c_fd_code IN :code_list
-            AND c_trade_date >= :begin_date
-            AND c_trade_date <= :end_date 
+          SELECT SECURITYCODE AS 基金代码,
+                 ENDDATE      AS 交易日期,
+                 AANVPER      AS 复权净值,
+                 AANVPERL     AS 昨复权净值
+          FROM TYTFUND.FUND_DR_FUNDNV
+          WHERE SECURITYCODE IN (:code_list)
+            AND ENDDATE >= TO_DATE(:begin_date, 'YYYY-MM-DD')
+            AND ENDDATE <= TO_DATE(:end_date, 'YYYY-MM-DD')
           """
-
-    return doris_fetcher.batch_query(
-        sql, fund_codes,
-        begin_date=begin_date,
-        end_date=end_date
-    )
+    return oracle_fetcher.batch_query(
+        sql, fund_codes, batch_size=500,
+        begin_date=begin_date, end_date=end_date)
 
 
 def get_fund_iv_cb(fund_codes: list[str], report_dt: str) -> pd.DataFrame:
@@ -45,24 +42,23 @@ def get_fund_iv_cb(fund_codes: list[str], report_dt: str) -> pd.DataFrame:
         已按STYLE去重，每只转债每只基金仅保留一条记录
     """
     sql = """
-          SELECT c_fd_code       AS 基金代码, 
-                 c_report_date   AS 报告日期, 
-                 c_bd_code       AS 债券代码, 
-                 c_bd_inner_code AS 债券内码, 
-                 c_nav_ratio     AS 持仓占比, 
-                 c_style
-          FROM tytdata.tb_fd_portfolio_bd
-          WHERE c_fd_code IN :code_list
-            AND c_report_date = :report_dt
-            AND c_bd_type = '2' 
+          SELECT FUNDCODE  AS 基金代码,
+                 ENDDATE   AS 报告日期,
+                 BONDCODE  AS 债券代码,
+                 INNERCODE AS 债券内码,
+                 PCTNV     AS 持仓占比,
+                 STYLE
+          FROM TYTFUND.FUND_IV_BONDINVESTD
+          WHERE FUNDCODE IN (:code_list)
+            AND ENDDATE = TO_DATE(:report_dt, 'YYYY-MM-DD')
+            AND BONDTYPE = '2' \
           """
+    df = oracle_fetcher.batch_query(sql, fund_codes, report_dt=report_dt)
 
-    df = doris_fetcher.batch_query(sql, fund_codes, report_dt=report_dt)
-
-    # 去重：STYLE优先级 '01' > '02' > '03' > '04'，保留最优先的记录
-    return (df.sort_values('c_style', ascending=True)
+    # 去重：按STYLE排序保留第一条
+    return (df.sort_values('STYLE', ascending=True)
             .drop_duplicates(subset=['基金代码', '报告日期', '债券内码'], keep='first')
-            .drop(columns='c_style'))
+            .drop('STYLE', axis=1))
 
 
 def get_fund_iv_stock(fund_codes: list[str], report_dt: str) -> pd.DataFrame:
@@ -77,22 +73,21 @@ def get_fund_iv_stock(fund_codes: list[str], report_dt: str) -> pd.DataFrame:
         已按STYLE去重，每只股票每只基金仅保留一条记录
     """
     sql = """
-          SELECT c_fd_code     AS 基金代码, 
-                 c_report_date AS 报告日期, 
-                 c_stk_code    AS 股票代码, 
-                 c_nav_ratio   AS 持仓占比, 
-                 c_style 
-          FROM tytdata.tb_fd_portfolio_stk
-          WHERE c_fd_code IN :code_list
-            AND c_report_date = :report_dt
+          SELECT FUNDCODE  AS 基金代码,
+                 ENDDATE   AS 报告日期,
+                 STOCKCODE AS 股票代码,
+                 PCTNV     AS 持仓占比,
+                 STYLE
+          FROM TYTFUND.FUND_IV_STOCKINVESTO
+          WHERE FUNDCODE IN (:code_list)
+            AND ENDDATE = TO_DATE(:report_dt, 'YYYY-MM-DD')
           """
+    df = oracle_fetcher.batch_query(sql, fund_codes, report_dt=report_dt)
 
-    df = doris_fetcher.batch_query(sql, fund_codes, report_dt=report_dt)
-
-    # 去重：STYLE优先级 '01' > '02' > '03' > '04'，保留最优先的记录
-    return (df.sort_values('c_style', ascending=True)
+    # 去重：按STYLE排序保留第一条
+    return (df.sort_values('STYLE', ascending=True)
             .drop_duplicates(subset=['基金代码', '报告日期', '股票代码'], keep='first')
-            .drop(columns='c_style'))
+            .drop('STYLE', axis=1))
 
 
 if __name__ == '__main__':
@@ -100,5 +95,6 @@ if __name__ == '__main__':
     main_begin_date = '2020-01-01'
     main_end_date = '2024-12-31'
 
-    main_fund_nav = get_fund_iv_stock(main_fund_codes, main_end_date)
+    main_cb = get_fund_iv_cb(main_fund_codes, main_end_date)
+    main_stk = get_fund_iv_stock(main_fund_codes, main_end_date)
 

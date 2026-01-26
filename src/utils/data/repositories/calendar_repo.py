@@ -11,7 +11,7 @@ def get_trading_dt(begin_date: str, end_date: str) -> pd.DatetimeIndex:
           FROM TYTFUND.QT_TRADE_CALENDAR
           WHERE IS_D = '1'
             AND TRADE_DT >= TO_DATE(:begin_date, 'YYYY-MM-DD')
-            AND TRADE_DT <= TO_DATE(:end_date, 'YYYY-MM-DD') \
+            AND TRADE_DT <= TO_DATE(:end_date, 'YYYY-MM-DD') 
           """
     df = oracle_fetcher.query(sql, begin_date=begin_date, end_date=end_date)
     return pd.DatetimeIndex(df['交易日期'])
