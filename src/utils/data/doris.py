@@ -31,6 +31,26 @@ class DorisQuery:
             result = pd.read_sql(text(sql), conn, params=params, chunksize=chunksize)
             return pd.concat(result) if chunksize else result
 
+    def batch_query(self, sql: str, code_list: list[str],
+                    batch_size: int = 1000, **params) -> pd.DataFrame:
+        """批量查询 - 处理IN子句
+
+        Args:
+            sql: SQL语句，IN子句使用 :code_list 占位
+            code_list: 代码列表
+            batch_size: 每批数量
+            **params: 其他参数
+
+        Returns:
+            合并后的DataFrame
+        """
+        results = []
+        for i in range(0, len(code_list), batch_size):
+            batch = tuple(code_list[i:i + batch_size])
+            results.append(self.query(sql, code_list=batch, **params))
+
+        return pd.concat(results, ignore_index=True) if results else pd.DataFrame()
+
     def execute(self, sql: str) -> None:
         """执行DDL/DML"""
         with self.engine.connect() as conn:
