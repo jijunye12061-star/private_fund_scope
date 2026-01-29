@@ -38,15 +38,16 @@ def get_fund_iv_cb(fund_codes: list[str], report_dt: str) -> pd.DataFrame:
         report_dt: 报告期日期 'YYYY-MM-DD'（季度末）
 
     Returns:
-        DataFrame(基金代码, 报告日期, 债券代码, 债券内码, 持仓占比)
+        DataFrame(基金代码, 报告日期, 披露日期, 债券代码, 债券内码, 持仓占比)
         已按STYLE去重，每只转债每只基金仅保留一条记录
     """
     sql = """
-          SELECT FUNDCODE  AS 基金代码,
-                 ENDDATE   AS 报告日期,
-                 BONDCODE  AS 债券代码,
-                 INNERCODE AS 债券内码,
-                 PCTNV     AS 持仓占比,
+          SELECT FUNDCODE   AS 基金代码,
+                 ENDDATE    AS 报告日期,
+                 NOTICEDATE AS 披露日期,
+                 BONDCODE   AS 债券代码,
+                 INNERCODE  AS 债券内码,
+                 PCTNV      AS 持仓占比,
                  STYLE
           FROM TYTFUND.FUND_IV_BONDINVESTD
           WHERE FUNDCODE IN (:code_list)
@@ -69,14 +70,15 @@ def get_fund_iv_stock(fund_codes: list[str], report_dt: str) -> pd.DataFrame:
         report_dt: 报告期日期 'YYYY-MM-DD'（季度末）
 
     Returns:
-        DataFrame(基金代码, 报告日期, 股票代码, 持仓占比)
+        DataFrame(基金代码, 报告日期, 披露日期, 股票代码, 持仓占比)
         已按STYLE去重，每只股票每只基金仅保留一条记录
     """
     sql = """
-          SELECT FUNDCODE  AS 基金代码,
-                 ENDDATE   AS 报告日期,
-                 STOCKCODE AS 股票代码,
-                 PCTNV     AS 持仓占比
+          SELECT FUNDCODE   AS 基金代码,
+                 ENDDATE    AS 报告日期,
+                 NOTICEDATE AS 披露日期,
+                 STOCKCODE  AS 股票代码,
+                 PCTNV      AS 持仓占比
           FROM TYTFUND.FUND_IV_STOCKINVESTO
           WHERE FUNDCODE IN (:code_list)
             AND ENDDATE = TO_DATE(:report_dt, 'YYYY-MM-DD')
@@ -92,12 +94,13 @@ def get_fund_asset_detail(fund_codes: list[str], report_dt: str) -> pd.DataFrame
     """获取基金资产配置（债券细分+杠杆）
 
     Returns:
-        DataFrame(基金代码, 报告日期, 股票占比, 转债占比, 利率债占比,
+        DataFrame(基金代码, 报告日期, 披露日期, 股票占比, 转债占比, 利率债占比,
                  信用债占比, 非政金债占比, ABS占比, 货币占比, 杠杆率)
     """
     sql = """
           SELECT FUNDCODE                                                                 AS 基金代码, \
-                 ENDDATE                                                                  AS 报告日期, \
+                 ENDDATE                                                                  AS 报告日期,
+                 NOTICEDATE                                                               AS 披露日期,
                  COALESCE(SIPCTNV, 0)                                                     AS 股票占比, \
                  COALESCE(BTPCTNV, 0)                                                     AS 转债占比, \
                  COALESCE(NBPCTNV1, 0) + COALESCE(PBPCTNV, 0) + \

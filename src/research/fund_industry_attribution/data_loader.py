@@ -6,8 +6,9 @@ from utils.data.repositories.fund_repo import (
 from utils.data.repositories.index_repo import get_index_nav
 from utils.data.repositories.bond_repo import get_bond_daily_nav
 from utils.data.repositories.calendar_repo import get_trading_dt
-from utils.calendar import generate_report_dates
-from .config import ASSET_INDEX_MAP, INDUSTRY_CONFIG
+from utils.calendar import generate_report_dates, find_next_report_date
+from research.fund_industry_attribution.fund_attr_config import ASSET_INDEX_MAP, INDUSTRY_CONFIG
+from typing import List
 
 
 def load_fund_nav(fund_code: str, begin_date: str, end_date: str) -> pd.Series:
@@ -17,45 +18,79 @@ def load_fund_nav(fund_code: str, begin_date: str, end_date: str) -> pd.Series:
     return (df['复权净值'] / df['昨复权净值'] - 1).rename('基金收益')
 
 
-def load_asset_allocation(fund_code: str, end_date: str, lookback: int = 8) -> pd.DataFrame:
-    """最近N期资产配置（向前填充到交易日）
+def load_asset_allocation(fund_code: str, begin_date: str, end_date: str) -> pd.DataFrame:
+    """资产配置（向前填充到交易日）
+
+    从 begin_date 开始的前一个季度开始查询，确保有数据可 forward fill
 
     Returns:
-        DataFrame(交易日期, 股票占比, 转债占比, 利率债占比, ..., 货币占比, 杠杆率)
+        DataFrame(交易日期, 股票占比, 转债占比, 利率债占比, 信用债占比,
+                 非政金债占比, ABS占比, 货币占比, 杠杆率)
+        索引为交易日期，已 forward fill
     """
-    report_dts = generate_report_dates(end_date, lookback)
+    # 计算需要查询的报告期范围
+    next_dt = find_next_report_date(begin_date, containing=False)
+    start_report = generate_report_dates(next_dt, 3)[0]  # begin_date 之前的季度末
+    end_report = find_next_report_date(end_date, containing=True)
 
-    dfs = []
-    for dt in report_dts:
+    # 计算需要回溯的期数
+    report_dates_all = generate_report_dates(end_report, 20)  # 足够多
+    report_dates = [dt for dt in report_dates_all if dt >= start_report]
+
+    dfs: List[pd.DataFrame] = []
+    for dt in report_dates:
         df = get_fund_asset_detail([fund_code], dt)
         if not df.empty:
             dfs.append(df)
 
     if not dfs:
-        raise ValueError(f"基金 {fund_code} 无资产配置数据")
+        raise ValueError(f"基金 {fund_code} 在 {start_report} 至 {end_report} 无资产配置数据")
 
-    allocation = pd.concat(dfs).set_index('报告日期').sort_index()
+    allocation = pd.concat(dfs).set_index('披露日期').sort_index()
 
     # 向前填充到交易日
-    trade_dates = get_trading_dt(allocation.index[0].strftime('%Y-%m-%d'), end_date)
+    trade_dates = get_trading_dt(begin_date, end_date)
     return allocation.reindex(trade_dates, method='ffill')
 
 
-def load_convertible_holdings(fund_code: str, end_date: str, lookback: int = 8) -> pd.DataFrame:
-    """转债持仓（季报披露部分）
+def load_convertible_holdings(fund_code: str, begin_date: str, end_date: str) -> pd.DataFrame:
+    """转债持仓（按披露日期展开为日度数据）
+
+    季报持仓从披露日期开始生效，forward fill 到下一披露日
 
     Returns:
-        DataFrame(报告日期, 债券内码, 持仓占比)
+        DataFrame(交易日期, 债券内码, 持仓占比)
+        MultiIndex(交易日期, 债券内码)，值为持仓占比
+        已按披露日期 forward fill 到日度
     """
-    report_dts = generate_report_dates(end_date, lookback)
+    # 查询足够多的报告期
+    next_dt = find_next_report_date(begin_date, containing=False)
+    start_report = generate_report_dates(next_dt, 3)[0]  # begin_date 之前的季度末
+    end_report = find_next_report_date(end_date, containing=True)
+    report_dates_all = generate_report_dates(end_report, 20)
+    report_dates = [dt for dt in report_dates_all if dt >= start_report]
 
-    dfs = []
-    for dt in report_dts:
+    dfs: List[pd.DataFrame] = []
+    for dt in report_dates:
         df = get_fund_iv_cb([fund_code], dt)
         if not df.empty:
-            dfs.append(df[['报告日期', '债券内码', '持仓占比']])
+            dfs.append(df[['披露日期', '债券内码', '持仓占比']])
 
-    return pd.concat(dfs) if dfs else pd.DataFrame()
+    if not dfs:
+        return pd.DataFrame()  # 没有转债持仓
+
+    cb_holdings = pd.concat(dfs)
+
+    # 转成宽表：披露日期 × 债券内码
+    pivot = cb_holdings.pivot(index='披露日期', columns='债券内码', values='持仓占比')
+    pivot = pivot.fillna(0)  # 新增持仓前为 0
+
+    # Forward fill 到交易日
+    trade_dates = get_trading_dt(begin_date, end_date)
+    daily_holdings = pivot.reindex(trade_dates, method='ffill').fillna(0)
+
+    # 转回长表格式
+    return daily_holdings.stack().rename('持仓占比').reset_index()
 
 
 def load_bond_index_returns(begin_date: str, end_date: str) -> pd.DataFrame:
@@ -104,3 +139,9 @@ def load_industry_returns(begin_date: str, end_date: str) -> pd.DataFrame:
 def load_trading_calendar(begin_date: str, end_date: str) -> pd.DatetimeIndex:
     """交易日序列"""
     return get_trading_dt(begin_date, end_date)
+
+
+if __name__ == "__main__":
+    test_asset = load_asset_allocation('000003', '2025-07-30', '2025-12-31')
+
+    test_cb = load_convertible_holdings('000003', '2025-07-30', '2025-12-31')

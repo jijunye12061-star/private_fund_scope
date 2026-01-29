@@ -6,7 +6,7 @@
 @time: 2025/12/19 15:38
 @description:
 """
-# config.py
+# fund_attr_config.py
 """配置文件"""
 
 # 指数配置
