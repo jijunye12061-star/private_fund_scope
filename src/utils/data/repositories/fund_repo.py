@@ -52,14 +52,14 @@ def get_fund_iv_cb(fund_codes: list[str], report_dt: str) -> pd.DataFrame:
           FROM TYTFUND.FUND_IV_BONDINVESTD
           WHERE FUNDCODE IN (:code_list)
             AND ENDDATE = TO_DATE(:report_dt, 'YYYY-MM-DD')
-            AND BONDTYPE = '2' \
+            AND BONDTYPE = '2'
+              ORDER BY NOTICEDATE
           """
     df = oracle_fetcher.batch_query(sql, fund_codes, report_dt=report_dt)
 
     # 去重：按STYLE排序保留第一条
-    return (df.sort_values('STYLE', ascending=True)
-            .drop_duplicates(subset=['基金代码', '报告日期', '债券内码'], keep='first')
-            .drop('STYLE', axis=1))
+    return df.drop_duplicates(subset=['基金代码', '报告日期', '债券内码'], keep='first')
+
 
 
 def get_fund_iv_stock(fund_codes: list[str], report_dt: str) -> pd.DataFrame:
@@ -82,7 +82,7 @@ def get_fund_iv_stock(fund_codes: list[str], report_dt: str) -> pd.DataFrame:
           FROM TYTFUND.FUND_IV_STOCKINVESTO
           WHERE FUNDCODE IN (:code_list)
             AND ENDDATE = TO_DATE(:report_dt, 'YYYY-MM-DD')
-          ORDER BY STYLE
+          ORDER BY NOTICEDATE
           """
     df = oracle_fetcher.batch_query(sql, fund_codes, report_dt=report_dt)
 
@@ -114,7 +114,7 @@ def get_fund_asset_detail(fund_codes: list[str], report_dt: str) -> pd.DataFrame
           FROM TYTFUND.FUND_IV_ASSETALLOCT
           WHERE FUNDCODE IN (:code_list)
             AND ENDDATE = TO_DATE(:report_dt, 'YYYY-MM-DD')
-          ORDER BY STYLE
+          ORDER BY NOTICEDATE
           """
 
     df = oracle_fetcher.batch_query(sql, fund_codes, report_dt=report_dt)

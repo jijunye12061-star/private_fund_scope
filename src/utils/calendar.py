@@ -20,23 +20,8 @@ def generate_report_dates(last_report_dt: str, n: int) -> list[str]:
     Returns:
         升序排列的报告期列表
     """
-    quarter_ends = ['03-31', '06-30', '09-30', '12-31']
-    last_date = pd.to_datetime(last_report_dt)
-
-    if last_date.strftime('%m-%d') not in quarter_ends:
-        raise ValueError("输入日期不是有效的报告期日期")
-
-    year = last_date.year
-    quarter_index = quarter_ends.index(last_date.strftime('%m-%d'))
-
-    report_dates = []
-    for i in range(n):
-        quarter = quarter_index % 4
-        report_year = year - (quarter_index // 4)
-        report_dates.append(f'{report_year}-{quarter_ends[quarter]}')
-        quarter_index -= 1
-
-    return sorted(report_dates)
+    dates = pd.date_range(end=last_report_dt, periods=n, freq='3ME')
+    return [d.strftime('%Y-%m-%d') for d in sorted(dates)]
 
 
 def find_next_report_date(date: str | pd.Timestamp, containing: bool = True) -> str:

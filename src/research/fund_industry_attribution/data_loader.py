@@ -15,6 +15,8 @@ def load_fund_nav(fund_code: str, begin_date: str, end_date: str) -> pd.Series:
     """基金日收益率序列"""
     df = get_fund_nav([fund_code], begin_date, end_date)
     df = df.set_index('交易日期').sort_index()
+    trade_dates = get_trading_dt(begin_date, end_date)
+    df = df.reindex(trade_dates, method='ffill')
     return (df['复权净值'] / df['昨复权净值'] - 1).rename('基金收益')
 
 
@@ -25,7 +27,7 @@ def load_asset_allocation(fund_code: str, begin_date: str, end_date: str) -> pd.
 
     Returns:
         DataFrame(交易日期, 股票占比, 转债占比, 利率债占比, 信用债占比,
-                 非政金债占比, ABS占比, 货币占比, 杠杆率)
+                 非政金债占比, ABS占比, 货币占比, 杠杆率)，返回小数
         索引为交易日期，已 forward fill
     """
     # 计算需要查询的报告期范围
@@ -47,6 +49,9 @@ def load_asset_allocation(fund_code: str, begin_date: str, end_date: str) -> pd.
         raise ValueError(f"基金 {fund_code} 在 {start_report} 至 {end_report} 无资产配置数据")
 
     allocation = pd.concat(dfs).set_index('披露日期').sort_index()
+    pct_columns = ['股票占比', '转债占比', '利率债占比', '信用债占比',
+                   '非政金债占比', 'ABS占比', '货币占比']
+    allocation[pct_columns] = allocation[pct_columns] / 100
 
     # 向前填充到交易日
     trade_dates = get_trading_dt(begin_date, end_date)
@@ -142,6 +147,11 @@ def load_trading_calendar(begin_date: str, end_date: str) -> pd.DatetimeIndex:
 
 
 if __name__ == "__main__":
-    test_asset = load_asset_allocation('000003', '2025-07-30', '2025-12-31')
+    # test_asset = load_asset_allocation('000003', '2025-01-30', '2025-12-31')
 
     test_cb = load_convertible_holdings('000003', '2025-07-30', '2025-12-31')
+
+    inner_codes = test_cb['债券内码'].unique().tolist()
+    cb_nav = get_bond_daily_nav(inner_codes, "2025-07-31", "2025-08-31")
+
+    index_ret = load_bond_index_returns("2025-07-31", "2025-08-31")
